@@ -6,9 +6,9 @@ class String
 
     lines.collect! do |line|
 
-      if magic_lists 
+      if magic_lists
         line =~ /^([\s\-\d\.\:]*\s)/
-      else 
+      else
         line =~ /^([\s]*\s)/
       end
 
@@ -18,7 +18,7 @@ class String
       first = true
 
       while line.length > 0
-        first ? (i, first = 0, false) : i = indent              
+        first ? (i, first = 0, false) : i = indent
         pos = width - i
 
         if line.length > pos and line[0..pos] =~ /^(.+)\s/
