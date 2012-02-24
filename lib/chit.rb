@@ -3,7 +3,6 @@ $:.unshift File.dirname(__FILE__)
 
 module Chit
   extend self
-  VERSION = '0.0.6'
 
   defaults = {
     'root'  => File.join("#{ENV['HOME']}",".chit")
@@ -27,18 +26,14 @@ module Chit
       return with_stdout_redirected_to(pipe_to_pager) { list_all() }
     end
 
-    unless File.exist?(sheet_file)
-      update
-    end
+    #unless File.exist?(sheet_file)
+      #update
+    #end
 
     unless File.exist?(sheet_file)
-      if args.delete('--no-add').nil? && CONFIG['add_if_not_exist']
-        add(sheet_file)
-      else
-        puts "Error!:\n  #{@sheet} not found"
-        puts "Possible sheets:"
-        search_title
-      end
+      puts "Error!:\n  #{@sheet} not found"
+      puts "Possible sheets:"
+      search_title
     else
       format = 'html' if args.delete('--html')
       with_stdout_redirected_to(pipe_to_pager) { show(sheet_file, format) }
@@ -51,13 +46,9 @@ module Chit
 
     @sheet = args.shift || 'chit'
     @sheet = 'chit' if @sheet == '--help'
-    is_private = (@sheet =~ /^@(.*)/)
-    @sheet = is_private ? $1 : @sheet
 
-    @working_dir = is_private ? private_path : main_path
+    @working_dir, @fullpath = detect_fullpath(@sheet)
     @git = Git.open(@working_dir)
-
-    @fullpath = File.join(@working_dir, "#{@sheet}.yml")
 
     add(sheet_file) and return if (args.delete('--add')||args.delete('-a'))
     edit(sheet_file) and return if (args.delete('--edit')||args.delete('-e'))
@@ -102,14 +93,28 @@ module Chit
   end
 
   def search_title
-    reg = Regexp.compile("^#{@sheet}")
+    reg = Regexp.compile("#{@sheet}")
     files = all_sheets.select {|sheet| sheet =~ reg }
     puts "  " + files.sort.join("\n  ")
     true
   end
 
+
+  def detect_fullpath(sheet)
+    is_private = (sheet =~ /^@(.*)/)
+    sheet_name = is_private ? $1 : sheet
+
+    path1 = File.join( main_path, "#{sheet_name}.yml")
+    path2 = File.join( private_path, "#{sheet_name}.yml")
+
+    return [private_path, path2] if is_private and File.exist?(path2)
+    return [main_path, path1] if File.exist?(path1)
+    return [private_path, path2] if File.exist?(path2)
+    return [(is_private ? private_path : main_path), nil]
+  end
+
   def sheet_file
-    @fullpath
+    @fullpath || ""
   end
 
   def init_chit
@@ -120,7 +125,7 @@ module Chit
       else
         puts "Initialize main chit from #{CONFIG['main']['clone-from']} to #{CONFIG['root']}/main"
         Git.clone(CONFIG['main']['clone-from'], 'main', :path => CONFIG['root'])
-        puts "Main chit initialized."        
+        puts "Main chit initialized."
       end
     else
       puts "ERROR: configuration for main chit repository is missing!"
@@ -191,7 +196,7 @@ module Chit
       puts "<pre>#{sheet.last.gsub("\r",'').gsub("\n", "\n  ").wrap}</pre>"
     else
       puts sheet.first + ':'
-      puts '  ' + sheet.last.gsub("\r",'').gsub("\n", "\n  ").wrap      
+      puts '  ' + sheet.last.gsub("\r",'').gsub("\n", "\n  ").wrap
     end
   end
 
@@ -223,7 +228,7 @@ module Chit
       @git.add
       st = @git.status
       unless st.added.empty? && st.changed.empty? && st.deleted.empty? && st.untracked.empty?
-        @git.commit_all(" #{@sheet} updated")        
+        @git.commit_all(" #{@sheet} updated")
       end
     end
     true
@@ -259,8 +264,16 @@ module Chit
   end
 
   def all_sheets
-    @git.ls_files.to_a.map {|f| 
-      title_of_file(f[0])}
+    all_public_sheets + all_private_sheets
+  end
+
+  def all_public_sheets
+    @git.ls_files.to_a.map {|f| title_of_file(f[0])}
+  end
+
+  def all_private_sheets
+    @private_git = Git.open(private_path)
+    @private_git.ls_files.to_a.map {|f| "@"+title_of_file(f[0])}
   end
 
   def title_of_file(f)
