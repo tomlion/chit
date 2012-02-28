@@ -109,12 +109,11 @@ module Chit
 
     return [private_path, path2] if is_private and File.exist?(path2)
     return [main_path, path1] if File.exist?(path1)
-    return [private_path, path2] if File.exist?(path2)
-    return [(is_private ? private_path : main_path), nil]
+    return [private_path, path2]
   end
 
   def sheet_file
-    @fullpath || ""
+    @fullpath
   end
 
   def init_chit
